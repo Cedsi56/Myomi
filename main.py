@@ -10,6 +10,8 @@ import requests
 import json
 import random
 
+from db_connector import *
+
 load_dotenv()
 
 TOKEN = os.getenv('DISCORD_TOKEN')
@@ -20,7 +22,9 @@ image_formats = ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gi
 
 links_file = "links.json"
 
-allowed_guilds = [1190980903296569395, 272125925896880129]
+allowed_guilds = [272125925896880129]
+
+conn = make_connection()
 
 @bot.event
 async def on_ready():
@@ -38,20 +42,9 @@ def is_url_image(image_url):
 def save_url(image_url, ctx: discord.ApplicationContext):
     # make new data
     user = ctx.user.id
-    new_data = {
-        "uploader":user,
-        "file_url":image_url
-    }
-    with open(links_file, 'r+') as file:
-        # First we load existing data into a dict.
-        file_data = json.load(file)
-        # Join new_data with file_data inside emp_details
-        file_data["links"].append(new_data)
-        # Sets file's current position at offset.
-        file.seek(0)
-        # convert back to json.
-        json.dump(file_data, file, indent=4)
-    pass
+    insert_into_db(conn, user, image_url)
+    conn.commit()
+
 
 # Add the guild ids in which the slash command will appear.
 # If it should be in all, remove the argument, but note that
@@ -113,12 +106,37 @@ async def waifu_upload_fichier(
 async def random_waifu(
         ctx: discord.ApplicationContext
 ):
-    with open(links_file, 'r+') as file:
-        # First we load existing data into a dict.
-        file_data = json.load(file)
-        # Join new_data with file_data inside emp_details
-        links = file_data["links"]
-        chosen_image = random.choice(links)
+    nb_links = count_lines(conn)
+    chosen_link = random.randint(1, nb_links)
+    link = get_link(conn, chosen_link)
+    await ctx.respond(link)
 
-        await ctx.respond(chosen_image["file_url"])
+
+@bot.slash_command(
+  name="update_db",
+  guild_ids=[272125925896880129]
+)
+async def update_db(
+        ctx: discord.ApplicationContext
+):
+    user_id = ctx.user.id
+    if user_id == 143350417093296128:
+        with open(links_file, 'r+') as file:
+            # First we load existing data into a dict.
+            file_data = json.load(file)
+            # Join new_data with file_data inside emp_details
+            links = file_data["links"]
+
+            for l in links:
+                uploader, file_url = l["uploader"], l["file_url"]
+                insert_into_db(conn, uploader, file_url)
+            commit(conn)
+            await ctx.respond("Done!")
+    else:
+        await ctx.respond("Je ne laisse pas n'importe qui semer la destruction.")
+
 bot.run(TOKEN)
+
+print("Execution is over")
+
+close_connection(conn)
