@@ -46,6 +46,17 @@ def save_url(image_url, ctx: discord.ApplicationContext):
     conn.commit()
 
 
+async def make_embed(ctx: discord.ApplicationContext, number, max_number, url, uploader):
+    embed = discord.Embed(
+        color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
+    )
+    uploader_user = await bot.fetch_user(uploader)
+    embed.set_image(url=url)
+    embed.set_author(name=f"Uploaded by {uploader_user.name}", icon_url=uploader_user.avatar)
+    embed.set_footer(text=f"Waifu #{number}/{max_number}")
+    return embed
+
+
 # Add the guild ids in which the slash command will appear.
 # If it should be in all, remove the argument, but note that
 # it will take some time (up to an hour) to register the
@@ -108,8 +119,9 @@ async def random_waifu(
 ):
     nb_links = count_lines(conn)
     chosen_link = random.randint(1, nb_links)
-    link = get_link(conn, chosen_link)
-    await ctx.respond(link)
+    link, uploader = get_link(conn, chosen_link)
+    embed = await make_embed(ctx, chosen_link, nb_links - 1, link, uploader)
+    await ctx.respond(embed=embed)
 
 
 @bot.slash_command(
@@ -121,10 +133,28 @@ async def waifu_from_number(
         number: discord.Option(input_type=discord.SlashCommandOptionType.integer, description="Numéro de la waifu", required=True)
 ):
     try:
-        link = get_link(conn, int(number) + 1)
-        await ctx.respond(link)
+        link, uploader = get_link(conn, int(number) + 1)
+        embed = await make_embed(ctx, number, count_lines(conn) - 1, link, uploader)
+        await ctx.respond(embed=embed)
     except:
         await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
+
+
+@bot.slash_command(
+  name="random_waifu_from_user",
+  guild_ids=allowed_guilds
+)
+async def random_waifu_from_user(
+        ctx: discord.ApplicationContext,
+        user: discord.Option(input_type=discord.SlashCommandOptionType.mentionable, description="Numéro de la waifu", required=True)
+):
+    user = str(user).split('>')[0].split('@')[1]
+    nb_links = count_lines_user(conn, user)
+    chosen_link = random.randint(1, nb_links)
+    link = get_link_user(conn, chosen_link, user)
+
+    embed = await make_embed(ctx, chosen_link, nb_links, link, user)
+    await ctx.respond(embed=embed)
 
 
 @bot.slash_command(

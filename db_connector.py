@@ -41,6 +41,15 @@ def count_lines(conn):
     return count
 
 
+def count_lines_user(conn, uploader):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(1) FROM links where uploader = ?", (uploader,))
+    count, = cur.fetchone()
+    print(f"COUNT: {count}")
+    return count
+
+
 def insert_into_db(conn, uploader, file_url):
     # Get Cursor
     cur = conn.cursor()
@@ -55,7 +64,16 @@ def insert_into_db(conn, uploader, file_url):
 def get_link(conn, number):
     number -= 1
     cur = conn.cursor()
-    cur.execute(f"SELECT url FROM links order by id offset ? rows fetch first row only", (number,))
+    cur.execute(f"SELECT url, uploader FROM links order by id offset ? rows fetch first row only", (number,))
+    link, uploader = cur.fetchone()
+    print(link)
+    return link, uploader
+
+
+def get_link_user(conn, number, user):
+    number -= 1
+    cur = conn.cursor()
+    cur.execute(f"SELECT url FROM links WHERE uploader = ? order by id offset ? rows fetch first row only", (user, number))
     link, = cur.fetchone()
     print(link)
     return link
