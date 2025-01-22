@@ -113,6 +113,18 @@ async def random_waifu(
 
 
 @bot.slash_command(
+  name="waifu_from_number",
+  guild_ids=allowed_guilds
+)
+async def waifu_from_number(
+        ctx: discord.ApplicationContext,
+        number: discord.Option(input_type=discord.SlashCommandOptionType.integer, description="Numéro de la waifu", required=True)
+):
+    link = get_link(conn, int(number) + 1)
+    await ctx.respond(link)
+
+
+@bot.slash_command(
   name="update_db",
   guild_ids=[272125925896880129]
 )
