@@ -50,9 +50,10 @@ async def make_embed(ctx: discord.ApplicationContext, number, max_number, url, u
     embed = discord.Embed(
         color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
     )
-    uploader_user = await bot.fetch_user(uploader)
     embed.set_image(url=url)
-    embed.set_author(name=f"Uploaded by {uploader_user.name}", icon_url=uploader_user.avatar)
+    if uploader is not None:
+        uploader_user = await bot.fetch_user(uploader)
+        embed.set_author(name=f"Uploaded by {uploader_user.name}", icon_url=uploader_user.avatar)
     embed.set_footer(text=f"Waifu #{number}/{max_number}")
     return embed
 
@@ -122,7 +123,8 @@ async def random_waifu(
 ):
     nb_links = count_lines(conn)
     chosen_link = random.randint(1, nb_links)
-    link, uploader = get_link(conn, chosen_link)
+    link,uploader = get_link(conn, chosen_link)
+    uploader = None
     embed = await make_embed(ctx, chosen_link, nb_links - 1, link, uploader)
     await ctx.respond(embed=embed)
 
