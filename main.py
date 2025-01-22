@@ -120,8 +120,11 @@ async def waifu_from_number(
         ctx: discord.ApplicationContext,
         number: discord.Option(input_type=discord.SlashCommandOptionType.integer, description="Numéro de la waifu", required=True)
 ):
-    link = get_link(conn, int(number) + 1)
-    await ctx.respond(link)
+    try:
+        link = get_link(conn, int(number) + 1)
+        await ctx.respond(link)
+    except:
+        await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
 
 
 @bot.slash_command(
