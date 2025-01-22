@@ -125,7 +125,7 @@ async def random_waifu(
     chosen_link = random.randint(1, nb_links)
     link,uploader = get_link(conn, chosen_link)
     uploader = None
-    embed = await make_embed(ctx, chosen_link, nb_links - 1, link, uploader)
+    embed = await make_embed(ctx, chosen_link - 1, nb_links - 1, link, uploader)
     await ctx.respond(embed=embed)
 
 
