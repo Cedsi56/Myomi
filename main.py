@@ -22,7 +22,7 @@ image_formats = ("image/png", "image/jpeg", "image/jpg", "image/webp", "image/gi
 
 links_file = "links.json"
 
-allowed_guilds = [272125925896880129]
+allowed_guilds = [1190980903296569395, 272125925896880129]
 
 conn = make_connection()
 
