@@ -142,11 +142,12 @@ async def waifu_from_number(
 
 @bot.slash_command(
   name="random_waifu_from_user",
-  guild_ids=allowed_guilds
+  guild_ids=allowed_guilds,
+  description="Waifu random d'un utilisateur"
 )
 async def random_waifu_from_user(
         ctx: discord.ApplicationContext,
-        user: discord.Option(input_type=discord.SlashCommandOptionType.mentionable, description="Numéro de la waifu", required=True)
+        user: discord.Option(input_type=discord.SlashCommandOptionType.mentionable, description="@Utilisateur", required=True)
 ):
     user = str(user).split('>')[0].split('@')[1]
     nb_links = count_lines_user(conn, user)
