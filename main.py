@@ -63,7 +63,8 @@ async def make_embed(ctx: discord.ApplicationContext, number, max_number, url, u
 # command if it's for all guilds.
 @bot.slash_command(
   name="waifu_upload_url",
-  guild_ids=allowed_guilds
+  guild_ids=allowed_guilds,
+  description="Upload d'une image de waifu par URL"
 )
 async def waifu_upload_url(
         ctx: discord.ApplicationContext,
@@ -85,7 +86,8 @@ async def waifu_upload_url(
 
 @bot.slash_command(
   name="waifu_upload_file",
-  guild_ids=allowed_guilds
+  guild_ids=allowed_guilds,
+  description="Upload d'une image de waifu par fichier"
 )
 @option(
     "file",
@@ -112,7 +114,8 @@ async def waifu_upload_fichier(
 
 @bot.slash_command(
   name="random_waifu",
-  guild_ids=allowed_guilds
+  guild_ids=allowed_guilds,
+  description="Waifu random"
 )
 async def random_waifu(
         ctx: discord.ApplicationContext
@@ -126,7 +129,8 @@ async def random_waifu(
 
 @bot.slash_command(
   name="waifu_from_number",
-  guild_ids=allowed_guilds
+  guild_ids=allowed_guilds,
+  description="Waifu à partir d'un numéro"
 )
 async def waifu_from_number(
         ctx: discord.ApplicationContext,
