@@ -3,6 +3,7 @@
 import os
 
 from discord import option
+from discord.ui import Item, Button
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
@@ -158,6 +159,52 @@ async def random_waifu(
     await ctx.respond(file=file, embed=embed)
 
 
+
+class MyView(discord.ui.View): # Create a class called MyView that subclasses discord.ui.View
+    def __init__(self, number, max_number, *items: Item):
+        super().__init__(*items)
+        self.number = int(number)
+        self.max_number = int(max_number)
+        self.set_button_states()
+
+    def set_button_states(self):
+        button1 = self.get_item("left")
+        button1.disabled = False
+        button2 = self.get_item("right")
+        button2.disabled = False
+        if self.number == 0:
+            button1.disabled = True
+        if self.number == self.max_number:
+            button2.disabled = True
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⬅️", custom_id="left", disabled=True)
+    async def first_button_callback(self, button, interaction):
+        self.number -= 1
+        self.set_button_states()
+
+        conn = make_connection()
+        link, uploader, star = get_link(conn, int(self.number) + 1)
+        max_number = count_lines(conn) - 1
+        embed = await make_embed(None, self.number, max_number, star, uploader)
+        file = discord.File(link, filename="image.png")
+        close_connection(conn)
+        await self.message.edit(file=file, embed=embed, view=MyView(self.number, max_number))
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="➡️", custom_id="right", disabled=True)
+    async def second_button_callback(self, button, interaction):
+        self.number += 1
+        self.set_button_states()
+        conn = make_connection()
+        link, uploader, star = get_link(conn, int(self.number) + 1)
+        max_number = count_lines(conn) - 1
+        embed = await make_embed(None, self.number, max_number, star, uploader)
+        file = discord.File(link, filename="image.png")
+        close_connection(conn)
+        await self.message.edit(file=file, embed=embed, view=MyView(self.number, max_number))
+        await interaction.response.edit_message(view=self)
+
+
 @bot.slash_command(
   name="waifu_from_number",
   guild_ids=allowed_guilds,
@@ -170,9 +217,10 @@ async def waifu_from_number(
     conn = make_connection()
     try:
         link, uploader, star = get_link(conn, int(number) + 1)
-        embed = await make_embed(ctx, number, count_lines(conn) - 1, star, uploader)
+        max_number = count_lines(conn) - 1
+        embed = await make_embed(ctx, number, max_number, star, uploader)
         file = discord.File(link, filename="image.png")
-        await ctx.respond(file=file, embed=embed)
+        await ctx.respond(file=file, embed=embed, view=MyView(number, max_number))
         close_connection(conn)
     except Exception as e:
         print(e)
