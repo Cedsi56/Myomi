@@ -50,12 +50,12 @@ def count_lines_user(conn, uploader):
     return count
 
 
-def insert_into_db(conn, uploader, file_url):
+def insert_into_db(conn, uploader, file_url, star_rating=1):
     # Get Cursor
     cur = conn.cursor()
     print(uploader)
     try:
-        cur.execute("INSERT INTO links (uploader,url) VALUES (?, ?)", (uploader, file_url))
+        cur.execute("INSERT INTO links (uploader,url,star_rating) VALUES (?, ?, ?)", (uploader, file_url, star_rating))
         print("Successfully inserted!")
     except mariadb.Error as e:
         print(f"Error: {e}")
@@ -78,6 +78,13 @@ def get_link_user(conn, number, user):
     print(link)
     return link
 
+
+def get_next_id(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT `auto_increment` FROM INFORMATION_SCHEMA.TABLES WHERE table_name = 'links'")
+    next_id, = cur.fetchone()
+    print(next_id)
+    return next_id
 
 def commit(conn):
     conn.commit()

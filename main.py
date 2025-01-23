@@ -37,12 +37,32 @@ def is_url_image(image_url):
    return False
 
 
-def save_url(image_url, ctx: discord.ApplicationContext):
+def save_url(image_url, ctx: discord.ApplicationContext, star = 1):
     # make new data
     conn = make_connection()
     user = ctx.user.id
-    insert_into_db(conn, user, image_url)
-    conn.commit()
+
+    # download the file before continuing
+    response = requests.get(image_url)
+
+
+    if response.status_code == 200:
+        next_id = get_next_id(conn)
+        r = requests.head(image_url)
+        file_ext = r.headers["content-type"].split("/")[1]
+        file = f"images/{next_id}.{file_ext}"
+        directory = os.path.dirname(file)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        with open(file, "wb") as fp:
+            print("test")
+            fp.write(response.content)
+        print("Image downloaded successfully.")
+        insert_into_db(conn, user, file, star)
+        conn.commit()
+    else:
+        print(f"Failed to download the image. Status code: {response.status_code}")
+
     close_connection(conn)
 
 
@@ -50,7 +70,7 @@ async def make_embed(ctx: discord.ApplicationContext, number, max_number, url, u
     embed = discord.Embed(
         color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
     )
-    embed.set_image(url=url)
+    embed.set_image(url="attachment://image.png")
     if uploader is not None:
         uploader_user = await bot.fetch_user(uploader)
         embed.set_author(name=f"Uploaded by {uploader_user.name}", icon_url=uploader_user.avatar)
@@ -69,15 +89,17 @@ async def make_embed(ctx: discord.ApplicationContext, number, max_number, url, u
 )
 async def waifu_upload_url(
         ctx: discord.ApplicationContext,
-        url: discord.Option(input_type=discord.SlashCommandOptionType.string, description="URL de l'image", required=True)
+        url: discord.Option(input_type=discord.SlashCommandOptionType.string, description="URL de l'image", required=True),
+        star: discord.Option(input_type=discord.SlashCommandOptionType.integer, description="Nombre d'étoiles", required=False)
 ):
     try:
         print(url)
         if is_url_image(url):
-            save_url(url, ctx)
+            save_url(url, ctx, star)
             await ctx.respond("Fichier uploadé!")
             return
-    except:
+    except Exception as e:
+        print(e)
         pass
     await ctx.respond("Ton incompétence est vraiment digne des invalides. "
                       "Ajoute l'URL d'une image valide à ton message si tu veux qu'elle soit ajoutée.")
@@ -98,12 +120,13 @@ async def waifu_upload_url(
 )
 async def waifu_upload_fichier(
         ctx: discord.ApplicationContext,
-        file: discord.Attachment
+        file: discord.Attachment,
+        star: discord.Option(input_type=discord.SlashCommandOptionType.integer, description="Nombre d'étoiles", required=False)
 ):
     try:
         if file:
             if file.content_type in image_formats:
-                save_url(file.url, ctx)
+                save_url(file.url, ctx, star)
                 await ctx.respond("Fichier uploadé!")
                 return
     except:
@@ -128,7 +151,8 @@ async def random_waifu(
     uploader = None
     embed = await make_embed(ctx, chosen_link - 1, nb_links - 1, link, uploader)
     close_connection(conn)
-    await ctx.respond(embed=embed)
+    file = discord.File(link, filename="image.png")
+    await ctx.respond(file=file, embed=embed)
 
 
 @bot.slash_command(
@@ -144,9 +168,11 @@ async def waifu_from_number(
     try:
         link, uploader = get_link(conn, int(number) + 1)
         embed = await make_embed(ctx, number, count_lines(conn) - 1, link, uploader)
-        await ctx.respond(embed=embed)
+        file = discord.File(link, filename="image.png")
+        await ctx.respond(file=file, embed=embed)
         close_connection(conn)
-    except:
+    except Exception as e:
+        print(e)
         close_connection(conn)
         await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
 
@@ -168,7 +194,8 @@ async def random_waifu_from_user(
 
     close_connection(conn)
     embed = await make_embed(ctx, chosen_link, nb_links, link, user)
-    await ctx.respond(embed=embed)
+    file = discord.File(link, filename="image.png")
+    await ctx.respond(file=file, embed=embed)
 
 
 @bot.slash_command(
