@@ -66,8 +66,11 @@ def save_url(image_url, ctx: discord.ApplicationContext, star = 1):
     close_connection(conn)
 
 
-async def make_embed(ctx: discord.ApplicationContext, number, max_number, url, uploader):
+async def make_embed(ctx: discord.ApplicationContext, number, max_number, star_rating, uploader):
+    etoiles = "⭐" * star_rating
+    print(etoiles)
     embed = discord.Embed(
+        title=etoiles,
         color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
     )
     embed.set_image(url="attachment://image.png")
@@ -147,9 +150,9 @@ async def random_waifu(
     conn = make_connection()
     nb_links = count_lines(conn)
     chosen_link = random.randint(1, nb_links)
-    link,uploader = get_link(conn, chosen_link)
+    link,uploader,star = get_link(conn, chosen_link)
     uploader = None
-    embed = await make_embed(ctx, chosen_link - 1, nb_links - 1, link, uploader)
+    embed = await make_embed(ctx, chosen_link - 1, nb_links - 1, star, uploader)
     close_connection(conn)
     file = discord.File(link, filename="image.png")
     await ctx.respond(file=file, embed=embed)
@@ -166,8 +169,8 @@ async def waifu_from_number(
 ):
     conn = make_connection()
     try:
-        link, uploader = get_link(conn, int(number) + 1)
-        embed = await make_embed(ctx, number, count_lines(conn) - 1, link, uploader)
+        link, uploader, star = get_link(conn, int(number) + 1)
+        embed = await make_embed(ctx, number, count_lines(conn) - 1, star, uploader)
         file = discord.File(link, filename="image.png")
         await ctx.respond(file=file, embed=embed)
         close_connection(conn)
@@ -190,10 +193,10 @@ async def random_waifu_from_user(
     user = str(user).split('>')[0].split('@')[1]
     nb_links = count_lines_user(conn, user)
     chosen_link = random.randint(1, nb_links)
-    link = get_link_user(conn, chosen_link, user)
+    link, star = get_link_user(conn, chosen_link, user)
 
     close_connection(conn)
-    embed = await make_embed(ctx, chosen_link, nb_links, link, user)
+    embed = await make_embed(ctx, chosen_link, nb_links, star, user)
     file = discord.File(link, filename="image.png")
     await ctx.respond(file=file, embed=embed)
 

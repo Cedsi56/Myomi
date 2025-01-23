@@ -64,19 +64,19 @@ def insert_into_db(conn, uploader, file_url, star_rating=1):
 def get_link(conn, number):
     number -= 1
     cur = conn.cursor()
-    cur.execute(f"SELECT url, uploader FROM links order by id offset ? rows fetch first row only", (number,))
-    link, uploader = cur.fetchone()
+    cur.execute(f"SELECT url, uploader, star_rating FROM links order by id offset ? rows fetch first row only", (number,))
+    link, uploader, star = cur.fetchone()
     print(link)
-    return link, uploader
+    return link, uploader, star
 
 
 def get_link_user(conn, number, user):
     number -= 1
     cur = conn.cursor()
-    cur.execute(f"SELECT url FROM links WHERE uploader = ? order by id offset ? rows fetch first row only", (user, number))
-    link, = cur.fetchone()
+    cur.execute(f"SELECT url, star_rating FROM links WHERE uploader = ? order by id offset ? rows fetch first row only", (user, number))
+    link, star = cur.fetchone()
     print(link)
-    return link
+    return link, star
 
 
 def get_next_id(conn):
