@@ -24,8 +24,6 @@ links_file = "links.json"
 
 allowed_guilds = [1190980903296569395, 272125925896880129]
 
-conn = make_connection()
-
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
@@ -41,9 +39,11 @@ def is_url_image(image_url):
 
 def save_url(image_url, ctx: discord.ApplicationContext):
     # make new data
+    conn = make_connection()
     user = ctx.user.id
     insert_into_db(conn, user, image_url)
     conn.commit()
+    close_connection(conn)
 
 
 async def make_embed(ctx: discord.ApplicationContext, number, max_number, url, uploader):
@@ -121,11 +121,13 @@ async def waifu_upload_fichier(
 async def random_waifu(
         ctx: discord.ApplicationContext
 ):
+    conn = make_connection()
     nb_links = count_lines(conn)
     chosen_link = random.randint(1, nb_links)
     link,uploader = get_link(conn, chosen_link)
     uploader = None
     embed = await make_embed(ctx, chosen_link - 1, nb_links - 1, link, uploader)
+    close_connection(conn)
     await ctx.respond(embed=embed)
 
 
@@ -138,11 +140,14 @@ async def waifu_from_number(
         ctx: discord.ApplicationContext,
         number: discord.Option(input_type=discord.SlashCommandOptionType.integer, description="Numéro de la waifu", required=True)
 ):
+    conn = make_connection()
     try:
         link, uploader = get_link(conn, int(number) + 1)
         embed = await make_embed(ctx, number, count_lines(conn) - 1, link, uploader)
         await ctx.respond(embed=embed)
+        close_connection(conn)
     except:
+        close_connection(conn)
         await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
 
 
@@ -155,11 +160,13 @@ async def random_waifu_from_user(
         ctx: discord.ApplicationContext,
         user: discord.Option(input_type=discord.SlashCommandOptionType.mentionable, description="@Utilisateur", required=True)
 ):
+    conn = make_connection()
     user = str(user).split('>')[0].split('@')[1]
     nb_links = count_lines_user(conn, user)
     chosen_link = random.randint(1, nb_links)
     link = get_link_user(conn, chosen_link, user)
 
+    close_connection(conn)
     embed = await make_embed(ctx, chosen_link, nb_links, link, user)
     await ctx.respond(embed=embed)
 
@@ -171,6 +178,7 @@ async def random_waifu_from_user(
 async def update_db(
         ctx: discord.ApplicationContext
 ):
+    conn = make_connection()
     user_id = ctx.user.id
     if user_id == 143350417093296128:
         with open(links_file, 'r+') as file:
@@ -186,9 +194,9 @@ async def update_db(
             await ctx.respond("Done!")
     else:
         await ctx.respond("Je ne laisse pas n'importe qui semer la destruction.")
+    close_connection(conn)
 
 bot.run(TOKEN)
 
 print("Execution is over")
 
-close_connection(conn)
