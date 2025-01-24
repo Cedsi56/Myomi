@@ -14,6 +14,8 @@ URL = os.getenv('MARIADB_URL')
 DB = os.getenv('MARIADB_DB')
 PORT = int(os.getenv('MARIADB_PORT'))
 
+DAILY_PULLS=10
+
 
 def make_connection():
     # Connect to MariaDB Platform
@@ -85,6 +87,117 @@ def get_next_id(conn):
     next_id, = cur.fetchone()
     print(next_id)
     return next_id
+
+
+def insert_user(conn, user):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO users (id, current_pity, current_4star_pity, essence) VALUES (?, ?, ?, ?)",
+                    (user, 0, 0, 0))
+        print("Successfully inserted user!")
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+def reset_pulls(conn, user):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE users SET pulls = ?, last_pull = CURRENT_DATE() WHERE id = ?", (DAILY_PULLS, user))
+        print("Successfully inserted user!")
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+def get_user(conn, user):
+    cur = conn.cursor()
+    cur.execute(f"SELECT pulls, last_pull, current_pity, current_4star_pity, essence "
+                f"FROM users WHERE id = ? order by id fetch first row only", (user,))
+    res = cur.fetchone()
+    if res is None:
+        # insert in db
+        insert_user(conn, user)
+        pulls, last_pull, current_pity, current_4star_pity, essence = get_user(conn, user)
+    else:
+        pulls, last_pull, current_pity, current_4star_pity, essence = res
+    return pulls, last_pull, current_pity, current_4star_pity, essence
+
+
+def count_lines_rarity(conn, rarity):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(1) FROM links where star_rating = ?", (rarity,))
+    count, = cur.fetchone()
+    print(f"COUNT: {count}")
+    return count
+
+
+def get_link_rarity(conn, number, rarity):
+    number -= 1
+    cur = conn.cursor()
+    cur.execute(f"SELECT url, star_rating, id FROM links WHERE star_rating = ? order by id offset ? rows "
+                f"fetch first row only", (rarity, number))
+    link, star, link_id = cur.fetchone()
+    print(link)
+    return link, star, link_id
+
+
+def check_user_already_has(conn, user, link):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(1) FROM user_waifu where user_id = ? and link_id = ?", (user, link))
+    count, = cur.fetchone()
+    return count != 0
+
+
+def register_pull(conn, user, link):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO user_waifu (user_id, link_id) VALUES (?, ?)",
+                    (user, link))
+        print("Successfully inserted into user_waifu!")
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+def lose_pull(conn, user, pulls):
+    # Get Cursor
+    cur = conn.cursor()
+    pulls -= 1
+    try:
+        cur.execute("UPDATE users SET pulls = ? where id = ?",
+                    (pulls, user))
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+def gain_essence(conn, user, essence):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE users SET essence = ? where id = ?",
+                    (essence, user))
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+def update_pity(conn, user, pity_4, pity_5):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE users SET current_4star_pity = ?, current_pity = ? where id = ?",
+                    (pity_4, pity_5, user))
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
 
 def commit(conn):
     conn.commit()
