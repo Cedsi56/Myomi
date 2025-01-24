@@ -60,7 +60,6 @@ def save_url(image_url, ctx: discord.ApplicationContext, star = 1):
         if not os.path.exists(directory):
             os.makedirs(directory)
         with open(file, "wb") as fp:
-            print("test")
             fp.write(response.content)
         print("Image downloaded successfully.")
         insert_into_db(conn, user, file, star)
@@ -73,7 +72,6 @@ def save_url(image_url, ctx: discord.ApplicationContext, star = 1):
 
 async def make_embed(ctx: discord.ApplicationContext, number, max_number, star_rating, uploader):
     etoiles = "⭐" * star_rating
-    print(etoiles)
     embed = discord.Embed(
         title=etoiles,
         color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
@@ -101,7 +99,6 @@ async def waifu_upload_url(
         star: discord.Option(input_type=discord.SlashCommandOptionType.integer, description="Nombre d'étoiles", required=False)
 ):
     try:
-        print(url)
         if is_url_image(url):
             save_url(url, ctx, star)
             await ctx.respond("Fichier uploadé!")
@@ -302,11 +299,6 @@ def get_pull(current_pity, current_4star_pity):
     twostar_actual = threestar_actual + twostar_base - 0.2 * current_pity
     onestar_actual = twostar_actual + onestar_base - 3 * current_4star_pity  # always = 999
 
-    print(f"Fivestar threshold : {fivestar_actual}")
-    print(f"Fourstar threshold : {fourstar_actual}")
-    print(f"Threestar threshold : {threestar_actual}")
-    print(f"Pull : {pull}")
-
     if pull <= fivestar_actual:
         ret = 5
     elif pull <= fourstar_actual:
@@ -324,7 +316,6 @@ def get_pull(current_pity, current_4star_pity):
 
 async def make_pull_embed(ctx: discord.ApplicationContext, number, max_number, star_rating, message):
     etoiles = "⭐" * star_rating
-    print(etoiles)
     embed = discord.Embed(
         title=etoiles,
         color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
@@ -347,11 +338,6 @@ async def pull_waifu(
     conn = make_connection()
     user = ctx.user.id
     pulls, last_pull, current_pity, current_4star_pity, essence = get_user(conn, user)
-    print(pulls)
-    print(last_pull)
-    print(current_pity)
-    print(current_4star_pity)
-    print(essence)
     if pulls is None:
         reset_pulls(conn, user)
     last_pull_today = last_pull == datetime.now().date()
@@ -362,7 +348,6 @@ async def pull_waifu(
         await ctx.respond("Plus de pulls disponible aujourd'hui.")
     else:
         pull_rarity, from_pity = get_pull(current_pity, current_4star_pity)
-        print(pull_rarity)
         nb_links = count_lines_rarity(conn, pull_rarity)
         chosen_link = random.randint(1, nb_links)
         link, star, link_id = get_link_rarity(conn, chosen_link, pull_rarity)
@@ -385,9 +370,8 @@ async def pull_waifu(
         if already_has:
             # gain essence based on rarity
             gained_essence = ESSENCE_GAIN[pull_rarity]
-            print(f"Pull rarity : {pull_rarity}, essence gained : {gained_essence}")
             new_total = essence + gained_essence
-            gain_essence(conn, user, new_total)
+            set_essence(conn, user, new_total)
             message = f"Tu avais déjà cette waifu, tu gagnes donc à la place {gained_essence} essences!"
             if from_pity:
                 message += "\nWaifu obtenue par hard pity"
@@ -403,6 +387,221 @@ async def pull_waifu(
             file = discord.File(link, filename="image.png")
             await ctx.respond(file=file, embed=embed)
     close_connection(conn)
+
+
+class DexView(discord.ui.View): # Create a class called MyView that subclasses discord.ui.View
+    def __init__(self, number, max_number, user, *items: Item):
+        super().__init__(*items)
+        self.number = int(number)
+        self.max_number = int(max_number)
+        self.set_button_states()
+        self.user = user
+
+    def set_button_states(self):
+        button1 = self.get_item("left")
+        button1.disabled = False
+        button2 = self.get_item("right")
+        button2.disabled = False
+        if self.number == 0:
+            button1.disabled = True
+        if self.number == self.max_number:
+            button2.disabled = True
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⬅️", custom_id="left", disabled=True)
+    async def first_button_callback(self, button, interaction):
+        self.number -= 1
+        self.set_button_states()
+
+        conn = make_connection()
+        link, uploader, star = get_link_dex(conn, int(self.number) + 1, self.user)
+        max_number = count_lines_dex(conn, self.user) - 1
+        embed = await make_embed(None, self.number, max_number, star, uploader)
+        file = discord.File(link, filename="image.png")
+        close_connection(conn)
+        await self.message.edit(file=file, embed=embed, view=DexView(self.number, max_number, self.user))
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="➡️", custom_id="right", disabled=True)
+    async def second_button_callback(self, button, interaction):
+        self.number += 1
+        self.set_button_states()
+        conn = make_connection()
+        link, uploader, star = get_link_dex(conn, int(self.number) + 1, self.user)
+        max_number = count_lines_dex(conn, self.user) - 1
+        embed = await make_embed(None, self.number, max_number, star, uploader)
+        file = discord.File(link, filename="image.png")
+        close_connection(conn)
+        await self.message.edit(file=file, embed=embed, view=DexView(self.number, max_number, self.user))
+        await interaction.response.edit_message(view=self)
+
+
+@bot.slash_command(
+  name="waifudex",
+  guild_ids=allowed_guilds,
+  description="Votre waifudex, à partir de ce que vous avez pull"
+)
+async def waifu_from_number(
+        ctx: discord.ApplicationContext,
+        number: discord.Option(input_type=discord.SlashCommandOptionType.integer,
+                               description="Numéro de la waifu",
+                               required=False
+                               ) = 0
+):
+    conn = make_connection()
+    try:
+        user = ctx.user.id
+        link, uploader, star = get_link_dex(conn, int(number) + 1, user)
+        max_number = count_lines_dex(conn, user) - 1
+        embed = await make_embed(ctx, number, max_number, star, uploader)
+        file = discord.File(link, filename="image.png")
+        await ctx.respond(file=file, embed=embed, view=DexView(number, max_number, user))
+        close_connection(conn)
+    except Exception as e:
+        print(e)
+        close_connection(conn)
+        await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
+
+
+async def make_pull_embed_shop(ctx: discord.ApplicationContext, star_rating, message):
+    etoiles = "⭐" * star_rating
+    embed = discord.Embed(
+        title=etoiles,
+        color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
+        description=message
+    )
+    embed.set_image(url="attachment://image.png")
+    return embed
+
+
+
+class EssenceView(discord.ui.View): # Create a class called MyView that subclasses discord.ui.View
+    def __init__(self, essence, user, *items: Item):
+        super().__init__(*items)
+        self.essence = int(essence)
+        self.set_button_states()
+        self.user = user
+
+    def set_button_states(self):
+        button1 = self.get_item("5star")
+        button1.disabled = False
+        button2 = self.get_item("4star")
+        button2.disabled = False
+        button3 = self.get_item("3star")
+        button3.disabled = False
+        button4 = self.get_item("2star")
+        button4.disabled = False
+        button5 = self.get_item("1star")
+        button5.disabled = False
+        if self.essence < ESSENCE_COST[5]:
+            button1.disabled = True
+        if self.essence < ESSENCE_COST[4]:
+            button2.disabled = True
+        if self.essence < ESSENCE_COST[3]:
+            button3.disabled = True
+        if self.essence < ESSENCE_COST[2]:
+            button4.disabled = True
+        if self.essence < ESSENCE_COST[1]:
+            button5.disabled = True
+
+
+    async def handle_button(self, pull_rarity, interaction):
+        if self.essence >= ESSENCE_COST[pull_rarity]:
+            conn = make_connection()
+
+            link_ids = get_all_link_rarity_unobtained(conn, pull_rarity, self.user)
+
+            await interaction.response.defer()
+
+            if len(link_ids) > 0:
+                chosen_link = random.choice(link_ids)
+
+                link_id, link_url = chosen_link
+
+                self.essence -= ESSENCE_COST[pull_rarity]
+
+                set_essence(conn, self.user, self.essence)
+
+                register_pull(conn, self.user, link_id)
+                message = f"Voici la waifu que tu as obtenu en dépensant tes {ESSENCE_COST[pull_rarity]} essences!"
+                embed = await make_pull_embed_shop(None, pull_rarity, message)
+                file = discord.File(link_url, filename="image.png")
+                await interaction.followup.send(file=file, embed=embed)
+            else:
+                await interaction.followup.send(f"Tu n'as plus de waifus de rareté {pull_rarity}⭐ à obtenir", ephemeral=True)
+
+            display_embed = shop_embed(self.essence)
+
+            self.set_button_states()
+            await interaction.edit_original_response(view=self, embed=display_embed)
+
+            close_connection(conn)
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⭐", custom_id="5star", disabled=True, label="5")
+    async def five_star_callback(self, button, interaction):
+        pull_rarity = 5
+        await self.handle_button(pull_rarity, interaction)
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⭐", custom_id="4star", disabled=True, label="4")
+    async def four_star_callback(self, button, interaction):
+        pull_rarity = 4
+        await self.handle_button(pull_rarity, interaction)
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⭐", custom_id="3star", disabled=True, label="3")
+    async def three_star_callback(self, button, interaction):
+        pull_rarity = 3
+        await self.handle_button(pull_rarity, interaction)
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⭐", custom_id="2star", disabled=True, label="2")
+    async def two_star_callback(self, button, interaction):
+        pull_rarity = 2
+        await self.handle_button(pull_rarity, interaction)
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⭐", custom_id="1star", disabled=True, label="1")
+    async def one_star_callback(self, button, interaction):
+        pull_rarity = 1
+        await self.handle_button(pull_rarity, interaction)
+
+
+def shop_embed(essence_count):
+    embed = discord.Embed(
+        title="Shop à essences",
+        color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
+        description="Bienvenue dans le shop à essences, où tu peux dépenser les essences obtenues "
+                    "lorsque tu pull une waifu en doublon, pour des pulls supplémentaires à rareté garantie!"
+    )
+    embed.add_field(name="**Pull ⭐⭐⭐⭐⭐**", value=f"{ESSENCE_COST[5]} essences", inline=True)
+    embed.add_field(name="**Pull ⭐⭐⭐⭐**", value=f"{ESSENCE_COST[4]} essences", inline=True)
+    embed.add_field(name="", value="", inline=False)
+    embed.add_field(name="**Pull ⭐⭐⭐**", value=f"{ESSENCE_COST[3]} essences", inline=True)
+    embed.add_field(name="**Pull ⭐⭐**", value=f"{ESSENCE_COST[2]} essences", inline=True)
+    embed.add_field(name="**Pull ⭐**", value=f"{ESSENCE_COST[1]} essences", inline=False)
+
+    embed.set_footer(text=f"Nombre d'essences en possession actuellement : {essence_count}")
+
+    return embed
+
+
+@bot.slash_command(
+  name="essence_shop",
+  guild_ids=allowed_guilds,
+  description="Magasin pour dépenser les essences obtenues par pull"
+)
+async def essence_shop(
+        ctx: discord.ApplicationContext,
+):
+    conn = make_connection()
+    try:
+        user = ctx.user.id
+        essence_count = get_essence_count(conn, user)
+
+        embed = shop_embed(essence_count)
+
+        await ctx.respond(view=EssenceView(essence_count, user), ephemeral=True, embed=embed)
+        close_connection(conn)
+    except Exception as e:
+        print(e)
+        close_connection(conn)
+        await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
 
 
 bot.run(TOKEN)

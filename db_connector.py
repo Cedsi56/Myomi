@@ -177,7 +177,7 @@ def lose_pull(conn, user, pulls):
         print(f"Error: {e}")
 
 
-def gain_essence(conn, user, essence):
+def set_essence(conn, user, essence):
     # Get Cursor
     cur = conn.cursor()
     try:
@@ -197,6 +197,49 @@ def update_pity(conn, user, pity_4, pity_5):
         conn.commit()
     except mariadb.Error as e:
         print(f"Error: {e}")
+
+
+def get_link_dex(conn, number, user):
+    number -= 1
+    cur = conn.cursor()
+    cur.execute(f"SELECT url, uploader, star_rating FROM links INNER JOIN user_waifu uw on links.id = uw.link_id "
+                f"WHERE uw.user_id = ? order by star_rating desc, id offset ? rows fetch first row only",
+                (user, number))
+    link, uploader, star = cur.fetchone()
+    print(link)
+    return link, uploader, star
+
+
+def count_lines_dex(conn, user):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute(f"SELECT COUNT(1) FROM links INNER JOIN user_waifu uw on links.id = uw.link_id "
+                f"WHERE uw.user_id = ? order by star_rating desc, id",
+                (user,))
+    count, = cur.fetchone()
+    print(f"COUNT: {count}")
+    return count
+
+
+def get_essence_count(conn, user):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT essence FROM users where id = ?", (user,))
+    essence_count, = cur.fetchone()
+    print(f"ESSENCE COUNT: {essence_count}")
+    return essence_count
+
+
+def get_all_link_rarity_unobtained(conn, rarity, user):
+    print(f"rarity : {rarity}")
+    print(f"user : {user}")
+    cur = conn.cursor()
+    cur.execute("select id, url from links WHERE star_rating = ? EXCEPT select id, url from links "
+                "INNER JOIN user_waifu uw on links.id = uw.link_id WHERE uw.user_id = ? AND star_rating = ?",
+                (rarity, user, rarity))
+    link_ids = [(link, url) for link, url in cur]
+    print(link_ids)
+    return link_ids
 
 
 def commit(conn):
