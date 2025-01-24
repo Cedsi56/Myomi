@@ -168,7 +168,6 @@ def register_pull(conn, user, link):
 def lose_pull(conn, user, pulls):
     # Get Cursor
     cur = conn.cursor()
-    pulls -= 1
     try:
         cur.execute("UPDATE users SET pulls = ? where id = ?",
                     (pulls, user))

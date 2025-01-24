@@ -314,7 +314,7 @@ def get_pull(current_pity, current_4star_pity):
     return ret, from_pity
 
 
-async def make_pull_embed(ctx: discord.ApplicationContext, number, max_number, star_rating, message):
+async def make_pull_embed(ctx: discord.ApplicationContext, number, max_number, star_rating, message, pulls):
     etoiles = "⭐" * star_rating
     embed = discord.Embed(
         title=etoiles,
@@ -322,7 +322,7 @@ async def make_pull_embed(ctx: discord.ApplicationContext, number, max_number, s
         description=message
     )
     embed.set_image(url="attachment://image.png")
-    embed.set_footer(text=f"Waifu #{number}/{max_number}")
+    embed.set_footer(text=f"Waifu #{number}/{max_number}, nombre de pulls restants : {pulls}")
     return embed
 
 
@@ -351,7 +351,7 @@ async def pull_waifu(
         nb_links = count_lines_rarity(conn, pull_rarity)
         chosen_link = random.randint(1, nb_links)
         link, star, link_id = get_link_rarity(conn, chosen_link, pull_rarity)
-
+        pulls -= 1
         lose_pull(conn, user, pulls)
 
         # INCREASE PITY COUNT BASED ON PULL RARITY
@@ -375,7 +375,7 @@ async def pull_waifu(
             message = f"Tu avais déjà cette waifu, tu gagnes donc à la place {gained_essence} essences!"
             if from_pity:
                 message += "\nWaifu obtenue par hard pity"
-            embed = await make_pull_embed(ctx, chosen_link, nb_links, star, message)
+            embed = await make_pull_embed(ctx, chosen_link, nb_links, star, message, pulls)
             file = discord.File(link, filename="image.png")
             await ctx.respond(file=file, embed=embed)
         else:
@@ -383,7 +383,7 @@ async def pull_waifu(
             message = f"Voici la waifu que tu as pull!"
             if from_pity:
                 message += "\nWaifu obtenue par hard pity"
-            embed = await make_pull_embed(ctx, chosen_link, nb_links, star, message)
+            embed = await make_pull_embed(ctx, chosen_link, nb_links, star, message, pulls)
             file = discord.File(link, filename="image.png")
             await ctx.respond(file=file, embed=embed)
     close_connection(conn)
