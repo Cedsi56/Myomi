@@ -71,14 +71,16 @@ def save_url(image_url, ctx: discord.ApplicationContext, star = 1):
 
 
 async def make_embed(ctx: discord.ApplicationContext, number, max_number, star_rating, uploader):
-    etoiles = "⭐" * star_rating
+    etoiles = "⭐" * int(star_rating)
     embed = discord.Embed(
         title=etoiles,
         color=discord.Colour.purple(),  # Pycord provides a class with default colors you can choose from
     )
     embed.set_image(url="attachment://image.png")
+    print(uploader)
     if uploader is not None:
         uploader_user = await bot.fetch_user(uploader)
+        print(uploader_user)
         embed.set_author(name=f"Uploaded by {uploader_user.name}", icon_url=uploader_user.avatar)
     embed.set_footer(text=f"Waifu #{number}/{max_number}")
     return embed
@@ -402,7 +404,7 @@ class DexView(discord.ui.View): # Create a class called MyView that subclasses d
         button1.disabled = False
         button2 = self.get_item("right")
         button2.disabled = False
-        if self.number == 0:
+        if self.number == 1:
             button1.disabled = True
         if self.number == self.max_number:
             button2.disabled = True
@@ -413,8 +415,8 @@ class DexView(discord.ui.View): # Create a class called MyView that subclasses d
         self.set_button_states()
 
         conn = make_connection()
-        link, uploader, star = get_link_dex(conn, int(self.number) + 1, self.user)
-        max_number = count_lines_dex(conn, self.user) - 1
+        link, uploader, star = get_link_dex(conn, int(self.number), self.user)
+        max_number = count_lines_dex(conn, self.user)
         embed = await make_embed(None, self.number, max_number, star, uploader)
         file = discord.File(link, filename="image.png")
         close_connection(conn)
@@ -426,8 +428,8 @@ class DexView(discord.ui.View): # Create a class called MyView that subclasses d
         self.number += 1
         self.set_button_states()
         conn = make_connection()
-        link, uploader, star = get_link_dex(conn, int(self.number) + 1, self.user)
-        max_number = count_lines_dex(conn, self.user) - 1
+        link, uploader, star = get_link_dex(conn, int(self.number), self.user)
+        max_number = count_lines_dex(conn, self.user)
         embed = await make_embed(None, self.number, max_number, star, uploader)
         file = discord.File(link, filename="image.png")
         close_connection(conn)
@@ -445,13 +447,13 @@ async def waifu_from_number(
         number: discord.Option(input_type=discord.SlashCommandOptionType.integer,
                                description="Numéro de la waifu",
                                required=False
-                               ) = 0
+                               ) = 1
 ):
     conn = make_connection()
     try:
         user = ctx.user.id
-        link, uploader, star = get_link_dex(conn, int(number) + 1, user)
-        max_number = count_lines_dex(conn, user) - 1
+        link, uploader, star = get_link_dex(conn, int(number), user)
+        max_number = count_lines_dex(conn, user)
         embed = await make_embed(ctx, number, max_number, star, uploader)
         file = discord.File(link, filename="image.png")
         await ctx.respond(file=file, embed=embed, view=DexView(number, max_number, user))
@@ -603,6 +605,82 @@ async def essence_shop(
         close_connection(conn)
         await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
 
+
+
+class RankedView(discord.ui.View): # Create a class called MyView that subclasses discord.ui.View
+    def __init__(self, number, max_number, rank, *items: Item):
+        super().__init__(*items)
+        self.number = int(number)
+        self.max_number = int(max_number)
+        self.rank = rank
+        self.set_button_states()
+
+    def set_button_states(self):
+        button1 = self.get_item("left")
+        button1.disabled = False
+        button2 = self.get_item("right")
+        button2.disabled = False
+        if self.number == 0:
+            button1.disabled = True
+        if self.number == self.max_number:
+            button2.disabled = True
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⬅️", custom_id="left", disabled=True)
+    async def first_button_callback(self, button, interaction):
+        self.number -= 1
+        self.set_button_states()
+
+        conn = make_connection()
+        link, uploader, link_id = get_link_rarity_uploader(conn, int(self.number) + 1, self.rank)
+        max_number = count_lines_rarity(conn, self.rank) - 1
+        embed = await make_embed(None, self.number, max_number, self.rank, uploader)
+        file = discord.File(link, filename="image.png")
+        close_connection(conn)
+        await self.message.edit(file=file, embed=embed, view=RankedView(self.number, max_number, self.rank))
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="➡️", custom_id="right", disabled=True)
+    async def second_button_callback(self, button, interaction):
+        self.number += 1
+        self.set_button_states()
+        conn = make_connection()
+        link, uploader, link_id = get_link_rarity_uploader(conn, int(self.number) + 1, self.rank)
+        max_number = count_lines_rarity(conn, self.rank) - 1
+        embed = await make_embed(None, self.number, max_number, self.rank, uploader)
+        file = discord.File(link, filename="image.png")
+        close_connection(conn)
+        await self.message.edit(file=file, embed=embed, view=RankedView(self.number, max_number, self.rank))
+        await interaction.response.edit_message(view=self)
+
+
+@bot.slash_command(
+  name="waifu_from_rank",
+  guild_ids=allowed_guilds,
+  description="Waifu à partir d'un nombre d'étoiles"
+)
+async def waifu_from_rank(
+        ctx: discord.ApplicationContext,
+        rank: discord.Option(
+            input_type=discord.SlashCommandOptionType.integer, description="Nombre d'étoiles", required=True
+        ),
+        number: discord.Option(
+            input_type=discord.SlashCommandOptionType.integer, description="Numéro de la waifu", required=False
+        ) = 0
+):
+    conn = make_connection()
+    try:
+        link, uploader, link_id = get_link_rarity_uploader(conn, int(number) + 1, rank)
+        max_number = count_lines_rarity(conn, rank) - 1
+        print("test")
+        embed = await make_embed(ctx, number, max_number, rank, uploader)
+        print("test2")
+        file = discord.File(link, filename="image.png")
+        await ctx.respond(file=file, embed=embed, view=RankedView(number, max_number, rank))
+        close_connection(conn)
+    except Exception as e:
+        print(e)
+        close_connection(conn)
+        await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
 
 bot.run(TOKEN)
 

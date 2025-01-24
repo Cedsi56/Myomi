@@ -145,6 +145,16 @@ def get_link_rarity(conn, number, rarity):
     return link, star, link_id
 
 
+def get_link_rarity_uploader(conn, number, rarity):
+    number -= 1
+    cur = conn.cursor()
+    cur.execute(f"SELECT url, uploader, id FROM links WHERE star_rating = ? order by id offset ? rows "
+                f"fetch first row only", (rarity, number))
+    link, uploader, link_id = cur.fetchone()
+    print(link)
+    return link, uploader, link_id
+
+
 def check_user_already_has(conn, user, link):
     # Get Cursor
     cur = conn.cursor()
