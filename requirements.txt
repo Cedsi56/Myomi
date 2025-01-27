@@ -3,3 +3,4 @@ python-dotenv
 requests
 mariadb
 yt_dlp
+pynacl
