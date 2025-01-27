@@ -742,7 +742,7 @@ async def play(ctx, *, link):
         if 'entries' in data:  # checking if the url is a playlist or not
             data = data['entries'][0]  # if its a playlist, we get the first item of it
         print("cd")
-        song = data['url']
+        song = data['title']
         print("dd")
         print(song)
         player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
