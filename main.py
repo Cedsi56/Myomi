@@ -741,7 +741,7 @@ async def play(ctx, *, link):
         print(data)
         my_data = data["requested_downloads"][0]["filepath"]
         print(f"----------- {my_data}")
-        player = discord.FFmpegOpusAudio(data, **ffmpeg_options)
+        player = discord.FFmpegOpusAudio(my_data, **ffmpeg_options)
 
         voice_clients[ctx.guild.id].play(player,
                                          after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop))
