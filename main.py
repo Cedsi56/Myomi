@@ -739,7 +739,7 @@ async def play(ctx, *, link):
         print("bb")
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
         print("cc")
-        print(song)
+        print(data)
         song = data['url']
         print("dd")
         print(song)
