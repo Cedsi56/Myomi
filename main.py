@@ -739,9 +739,9 @@ async def play(ctx, *, link):
         print("bb")
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
         print("cc")
-        print(data)
         if 'entries' in data:  # checking if the url is a playlist or not
             data = data['entries'][0]  # if its a playlist, we get the first item of it
+        print("cd")
         song = data['url']
         print("dd")
         print(song)
