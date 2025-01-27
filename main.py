@@ -739,7 +739,7 @@ async def play(ctx, *, link):
         print("bb")
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=True))
         print(data)
-        print(data["requested_downloads"])
+        print(f"----------- {data["requested_downloads"]["requested_formats"]}")
         player = discord.FFmpegOpusAudio(data, **ffmpeg_options)
 
         voice_clients[ctx.guild.id].play(player,
