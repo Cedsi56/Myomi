@@ -737,21 +737,13 @@ async def play(ctx, *, link):
         print("aa")
         loop = asyncio.get_event_loop()
         print("bb")
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
-        print("cc")
-        if 'entries' in data:  # checking if the url is a playlist or not
-            data = data['entries'][0]  # if its a playlist, we get the first item of it
-        print("cd")
-        song = data['title']
-        print("dd")
-        print(song)
-        player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
-        print("ee")
+        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=True))
+        player = discord.FFmpegOpusAudio(data, **ffmpeg_options)
 
         voice_clients[ctx.guild.id].play(player,
                                          after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop))
         print("ff")
-        await ctx.respond(f"Lancement de la musique {song}")
+        # await ctx.respond(f"Lancement de la musique {song}")
     except Exception as e:
         print(e)
 
