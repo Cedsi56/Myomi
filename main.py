@@ -697,7 +697,7 @@ voice_clients = {}
 youtube_base_url = 'https://www.youtube.com/'
 youtube_results_url = youtube_base_url + 'results?'
 youtube_watch_url = youtube_base_url + 'watch?v='
-yt_dl_options = {"format": "bestaudio/best", "cookies-from-browser": "firefox"}
+yt_dl_options = {"format": "wv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]", "cookies": "cookies.txt"}
 ytdl = yt_dlp.YoutubeDL(yt_dl_options)
 
 ffmpeg_options = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
