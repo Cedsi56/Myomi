@@ -734,15 +734,21 @@ async def play(ctx, *, link):
             search_results = re.findall(r'/watch\?v=(.{11})', content.read().decode())
 
             link = youtube_watch_url + search_results[0]
-
+        print("aa")
         loop = asyncio.get_event_loop()
+        print("bb")
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(link, download=False))
+        print("cc")
 
         song = data['url']
+        print("dd")
+        print(song)
         player = discord.FFmpegOpusAudio(song, **ffmpeg_options)
+        print("ee")
 
         voice_clients[ctx.guild.id].play(player,
                                          after=lambda e: asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop))
+        print("ff")
         await ctx.respond(f"Lancement de la musique {song}")
     except Exception as e:
         print(e)
