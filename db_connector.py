@@ -211,12 +211,12 @@ def update_pity(conn, user, pity_4, pity_5):
 def get_link_dex(conn, number, user):
     number -= 1
     cur = conn.cursor()
-    cur.execute(f"SELECT url, uploader, star_rating FROM links INNER JOIN user_waifu uw on links.id = uw.link_id "
+    cur.execute(f"SELECT url, uploader, star_rating, id FROM links INNER JOIN user_waifu uw on links.id = uw.link_id "
                 f"WHERE uw.user_id = ? order by star_rating desc, id offset ? rows fetch first row only",
                 (user, number))
-    link, uploader, star = cur.fetchone()
+    link, uploader, star, link_id = cur.fetchone()
     print(link)
-    return link, uploader, star
+    return link, uploader, star, link_id
 
 
 def count_lines_dex(conn, user):
@@ -235,13 +235,10 @@ def get_essence_count(conn, user):
     cur = conn.cursor()
     cur.execute("SELECT essence FROM users where id = ?", (user,))
     essence_count, = cur.fetchone()
-    print(f"ESSENCE COUNT: {essence_count}")
     return essence_count
 
 
 def get_all_link_rarity_unobtained(conn, rarity, user):
-    print(f"rarity : {rarity}")
-    print(f"user : {user}")
     cur = conn.cursor()
     cur.execute("select id, url from links WHERE star_rating = ? EXCEPT select id, url from links "
                 "INNER JOIN user_waifu uw on links.id = uw.link_id WHERE uw.user_id = ? AND star_rating = ?",
@@ -249,6 +246,45 @@ def get_all_link_rarity_unobtained(conn, rarity, user):
     link_ids = [(link, url) for link, url in cur]
     print(link_ids)
     return link_ids
+
+
+def select_waifu(conn, waifu, user):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE users SET selected_waifu  = ? where id = ?",
+                    (waifu, user))
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+
+def get_currently_selected_waifu(conn, user):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT selected_waifu FROM users where id = ?", (user,))
+    selected_waifu, = cur.fetchone()
+    return selected_waifu
+
+
+def remove_waifu_from_user(conn, user, waifu):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM user_waifu where link_id = ? and user_id = ?",
+                    (waifu, user))
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+def get_waifu_by_id(conn, waifu):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT url, star_rating FROM links where id = ?", (waifu,))
+    url, star_rating = cur.fetchone()
+    return url, star_rating
 
 
 def commit(conn):

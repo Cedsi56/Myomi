@@ -399,18 +399,27 @@ class DexView(discord.ui.View): # Create a class called MyView that subclasses d
         super().__init__(*items)
         self.number = int(number)
         self.max_number = int(max_number)
-        self.set_button_states()
         self.user = user
+        self.set_button_states()
 
     def set_button_states(self):
         button1 = self.get_item("left")
         button1.disabled = False
         button2 = self.get_item("right")
         button2.disabled = False
+        button_select = self.get_item("select")
+        button_select.disabled = False
         if self.number == 1:
             button1.disabled = True
         if self.number == self.max_number:
             button2.disabled = True
+        print("aa")
+        conn = make_connection()
+        link, uploader, star, link_id = get_link_dex(conn, int(self.number), self.user)
+        selected_id = get_currently_selected_waifu(conn, self.user)
+        if selected_id == link_id:
+            button_select.disabled = True
+        close_connection(conn)
 
     @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⬅️", custom_id="left", disabled=True)
     async def first_button_callback(self, button, interaction):
@@ -418,7 +427,7 @@ class DexView(discord.ui.View): # Create a class called MyView that subclasses d
         self.set_button_states()
 
         conn = make_connection()
-        link, uploader, star = get_link_dex(conn, int(self.number), self.user)
+        link, uploader, star, link_id = get_link_dex(conn, int(self.number), self.user)
         max_number = count_lines_dex(conn, self.user)
         embed = await make_embed(None, self.number, max_number, star, uploader)
         file = discord.File(link, filename="image.png")
@@ -426,12 +435,37 @@ class DexView(discord.ui.View): # Create a class called MyView that subclasses d
         await self.message.edit(file=file, embed=embed, view=DexView(self.number, max_number, self.user))
         await interaction.response.edit_message(view=self)
 
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⭐", custom_id="select", disabled=True)
+    async def select_waifu_callback(self, button, interaction):
+        await interaction.response.defer()
+        if interaction.user.id == self.user:
+            conn = make_connection()
+
+            link, uploader, star, link_id = get_link_dex(conn, int(self.number), self.user)
+
+            select_waifu(conn, link_id, self.user)
+
+            self.set_button_states()
+
+            max_number = count_lines_dex(conn, self.user)
+            embed = await make_embed(None, self.number, max_number, star, uploader)
+            file = discord.File(link, filename="image.png")
+            close_connection(conn)
+            await interaction.edit_original_response(file=file, embed=embed, view=DexView(self.number, max_number, self.user))
+
+            await interaction.followup.send(f"Waifu sélectionnée!", ephemeral=True)
+        else:
+            await interaction.followup.send(f"Vous ne pouvez pas sélectionner une waifu pour quelqu'un d'autre!",
+                                            ephemeral=True)
+
+
     @discord.ui.button(style=discord.ButtonStyle.primary, emoji="➡️", custom_id="right", disabled=True)
     async def second_button_callback(self, button, interaction):
         self.number += 1
         self.set_button_states()
         conn = make_connection()
-        link, uploader, star = get_link_dex(conn, int(self.number), self.user)
+        link, uploader, star, link_id = get_link_dex(conn, int(self.number), self.user)
         max_number = count_lines_dex(conn, self.user)
         embed = await make_embed(None, self.number, max_number, star, uploader)
         file = discord.File(link, filename="image.png")
@@ -455,7 +489,7 @@ async def waifu_from_number(
     conn = make_connection()
     try:
         user = ctx.user.id
-        link, uploader, star = get_link_dex(conn, int(number), user)
+        link, uploader, star, link_id = get_link_dex(conn, int(number), user)
         max_number = count_lines_dex(conn, user)
         embed = await make_embed(ctx, number, max_number, star, uploader)
         file = discord.File(link, filename="image.png")
@@ -686,6 +720,194 @@ async def waifu_from_rank(
         await ctx.respond("Tant de nombres disponibles; et tu en choisis un qui n'est pas valide. C'est déplorable, mais digne de toi.")
 
 
+
+
+
+async def make_trade_chat_embed(user1, user2, status1, status2):
+    embed = discord.Embed(
+        title="Accepter l'échange ?",
+        color=discord.Colour.purple(),
+        description=f"<@{user1}> \t : {status1}\n"
+                    f"<@{user2}> \t : {status2}"
+    )
+    return embed
+
+
+async def make_trade_chat_embed_done(message):
+    embed = discord.Embed(
+        title="Échange terminé!",
+        color=discord.Colour.purple(),
+        description=message
+    )
+    return embed
+
+
+class TradeView(discord.ui.View): # Create a class called MyView that subclasses discord.ui.View
+    def __init__(self, user1, user2, user1_accepted, user2_accepted, items_exist, *items: Item):
+        super().__init__(*items)
+        self.user1 = int(user1)
+        self.user2 = int(user2)
+        self.user1_accepted = user1_accepted
+        self.user2_accepted = user2_accepted
+        if not items_exist:
+            self.clear_items()
+
+
+    def check_valid_user(self, interaction):
+        return interaction.user.id in (self.user1, self.user2)
+
+
+    def both_users_accepted(self):
+        return self.user1_accepted and self.user2_accepted
+
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="✅", custom_id="accept")
+    async def accept(self, button, interaction):
+        if self.check_valid_user(interaction):
+            if interaction.user.id == self.user1:
+                self.user1_accepted = True
+            else:
+                self.user2_accepted = True
+
+            if self.both_users_accepted():
+                conn = make_connection()
+                waifu1 = get_currently_selected_waifu(conn, self.user1)
+                waifu2 = get_currently_selected_waifu(conn, self.user2)
+                register_pull(conn, self.user1, waifu2)
+                register_pull(conn, self.user2, waifu1)
+                remove_waifu_from_user(conn, self.user1, waifu1)
+                remove_waifu_from_user(conn, self.user2, waifu2)
+                select_waifu(conn, None, self.user1)
+                select_waifu(conn, None, self.user2)
+                close_connection(conn)
+
+                embed = await make_trade_chat_embed_done("Les waifus ont été échangées.")
+
+                new_view = TradeView(self.user1, self.user2,
+                                     self.user1_accepted, self.user2_accepted, False)
+
+                await self.message.edit(embed=embed,
+                                        view=new_view)
+                await interaction.response.edit_message(view=new_view)
+            else:
+                pending_message = "En attente"
+                validated_message = "Validé"
+                if self.user1_accepted:
+                    message1 = validated_message
+                else:
+                    message1 = pending_message
+
+                if self.user2_accepted:
+                    message2 = validated_message
+                else:
+                    message2 = pending_message
+                embed = await make_trade_chat_embed(self.user1, self.user2, message1, message2)
+
+
+                new_view = TradeView(self.user1, self.user2,
+                                     self.user1_accepted, self.user2_accepted, True)
+
+                await self.message.edit(embed=embed,
+                                        view=new_view)
+                await interaction.response.edit_message(view=new_view)
+
+
+    @discord.ui.button(style=discord.ButtonStyle.primary, emoji="❌", custom_id="refuse")
+    async def refuse(self, button, interaction):
+        if self.check_valid_user(interaction):
+            embed = await make_trade_chat_embed_done("L'échange a été refusé.")
+
+            new_view = TradeView(self.user1, self.user2,
+                                                   self.user1_accepted, self.user2_accepted, False)
+
+            await self.message.edit(embed=embed,
+                                    view=new_view)
+            await interaction.response.edit_message(view=new_view)
+
+async def make_trade_embed(star_rating, message):
+    etoiles = "⭐" * star_rating
+    embed = discord.Embed(
+        title=etoiles,
+        color=discord.Colour.purple(),
+        description=message
+    )
+    embed.set_image(url="attachment://image.png")
+    return embed
+
+
+@bot.slash_command(
+  name="trade",
+  guild_ids=allowed_guilds,
+  description="Permet d'échanger des waifus avec un utilisateur"
+)
+async def trade(
+        ctx: discord.ApplicationContext,
+        pinged_user: discord.Option(input_type=discord.SlashCommandOptionType.mentionable,
+                             description="@Utilisateur",
+                             required=True)
+):
+    conn = make_connection()
+    try:
+        my_user_id = ctx.user.id
+        pinged_user_id = str(pinged_user).split('>')[0].split('@')[1]
+
+        my_selected = get_currently_selected_waifu(conn, my_user_id)
+
+        if int(pinged_user_id) == my_user_id:
+            await ctx.respond("Vous ne pouvez pas échanger avec vous-même!",
+                              ephemeral=True)
+            return
+
+        if my_selected is None:
+            await ctx.respond("Sélectionnez une waifu dans votre waifudex avant de lancer cette commande!",
+                              ephemeral=True)
+            return
+
+        their_selected = get_currently_selected_waifu(conn, pinged_user_id)
+
+        if their_selected is None:
+            await ctx.respond("L'utilisateur mentionné n'a pas sélectionné de waifu dans son waifudex")
+            return
+
+        if check_user_already_has(conn, my_user_id, their_selected):
+            await ctx.respond("Vous avez déjà la waifu sélectionnée par cette personne.",
+                              ephemeral=True)
+            return
+
+        if check_user_already_has(conn, pinged_user_id, my_selected):
+            await ctx.respond("Cette personne a déjà la waifu que vous avez sélectionnée.",
+                              ephemeral=True)
+            return
+
+        my_waifu_url, my_waifu_star = get_waifu_by_id(conn, my_selected)
+
+        message = f"Voici la waifu sélectionnée par <@{my_user_id}>"
+        embed = await make_trade_embed(my_waifu_star, message)
+        file = discord.File(my_waifu_url, filename="image.png")
+        await ctx.respond(file=file, embed=embed)
+
+        their_waifu_url, their_waifu_star = get_waifu_by_id(conn, their_selected)
+
+        message = f"Voici la waifu sélectionnée par <@{pinged_user_id}>"
+        embed = await make_trade_embed(their_waifu_star, message)
+        file = discord.File(their_waifu_url, filename="image.png")
+        await ctx.respond(file=file, embed=embed)
+
+        default_status = "En attente"
+
+        trade_chat_embed = await make_trade_chat_embed(my_user_id, pinged_user_id, default_status, default_status)
+
+        await ctx.respond(embed=trade_chat_embed, view=TradeView(my_user_id,
+                                                                 pinged_user_id,
+                                                                 False,
+                                                                 False,
+                                                                 True))
+    except Exception as e:
+        print(e)
+        await ctx.respond("Une erreur est survenue.",
+                          ephemeral=True)
+    finally:
+        close_connection(conn)
 
 
 
