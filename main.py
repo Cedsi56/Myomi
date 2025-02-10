@@ -29,7 +29,7 @@ links_file = "links.json"
 
 allowed_guilds = [1190980903296569395, 272125925896880129]
 
-ESSENCE_GAIN = [0, 10, 20, 50, 100, 200]
+ESSENCE_GAIN = [1000, 10, 20, 50, 100, 200]
 ESSENCE_COST = [10000, 40, 80, 200, 500, 1000]
 
 @bot.event
@@ -89,13 +89,8 @@ async def make_embed(ctx: discord.ApplicationContext, number, max_number, star_r
     return embed
 
 
-# Add the guild ids in which the slash command will appear.
-# If it should be in all, remove the argument, but note that
-# it will take some time (up to an hour) to register the
-# command if it's for all guilds.
 @bot.slash_command(
   name="waifu_upload_url",
-  guild_ids=allowed_guilds,
   description="Upload d'une image de waifu par URL"
 )
 async def waifu_upload_url(
@@ -119,7 +114,6 @@ async def waifu_upload_url(
 
 @bot.slash_command(
   name="waifu_upload_file",
-  guild_ids=allowed_guilds,
   description="Upload d'une image de waifu par fichier"
 )
 @option(
@@ -253,32 +247,6 @@ async def random_waifu_from_user(
     embed = await make_embed(ctx, chosen_link, nb_links, star, user)
     file = discord.File(link, filename="image.png")
     await ctx.respond(file=file, embed=embed)
-
-
-@bot.slash_command(
-  name="update_db",
-  guild_ids=[272125925896880129]
-)
-async def update_db(
-        ctx: discord.ApplicationContext
-):
-    conn = make_connection()
-    user_id = ctx.user.id
-    if user_id == 143350417093296128:
-        with open(links_file, 'r+') as file:
-            # First we load existing data into a dict.
-            file_data = json.load(file)
-            # Join new_data with file_data inside emp_details
-            links = file_data["links"]
-
-            for l in links:
-                uploader, file_url = l["uploader"], l["file_url"]
-                insert_into_db(conn, uploader, file_url)
-            commit(conn)
-            await ctx.respond("Done!")
-    else:
-        await ctx.respond("Je ne laisse pas n'importe qui semer la destruction.")
-    close_connection(conn)
 
 
 def get_pull(current_pity, current_4star_pity):
