@@ -3,9 +3,6 @@
 import os
 from dotenv import load_dotenv
 from constants import bot
-from waifu import *
-from upload import *
-from music import *
 
 
 load_dotenv()
@@ -16,6 +13,15 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 async def on_ready():
     print(f'We have logged in as {bot.user}')
 
+
+cogs_list = [
+    'music',
+    'upload',
+    'waifu',
+]
+
+for cog in cogs_list:
+    bot.load_extension(f'{cog}')
 
 bot.run(TOKEN)
 
