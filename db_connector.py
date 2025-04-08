@@ -56,6 +56,8 @@ def insert_into_db(conn, uploader, file_url, star_rating=1):
     # Get Cursor
     cur = conn.cursor()
     print(uploader)
+    if star_rating is None:
+        star_rating = 1
     try:
         cur.execute("INSERT INTO links (uploader,url,star_rating) VALUES (?, ?, ?)", (uploader, file_url, star_rating))
         print("Successfully inserted!")
@@ -259,6 +261,25 @@ def select_waifu(conn, waifu, user):
         print(f"Error: {e}")
 
 
+def add_waifu_to_party(conn, waifu, user):
+    # Get Cursor
+    cur = conn.cursor()
+    print(waifu)
+    print(user)
+    try:
+        cur.execute("UPDATE user_waifu SET party_order = party_order + 1 where user_id = ?",
+                    (user,))
+        cur.execute("UPDATE user_waifu SET party_order = NULL where user_id = ? and party_order = 4",
+                    (user,))
+        cur.execute("UPDATE user_waifu SET party_order = 1 where link_id = ? and user_id = ?",
+                    (waifu, user))
+        cur.execute("UPDATE user_waifu SET level = 5, experience = 0 where link_id = ? and user_id = ? and level is NULL",
+                    (waifu, user))
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
 
 def get_currently_selected_waifu(conn, user):
     # Get Cursor
@@ -266,6 +287,24 @@ def get_currently_selected_waifu(conn, user):
     cur.execute("SELECT selected_waifu FROM users where id = ?", (user,))
     selected_waifu, = cur.fetchone()
     return selected_waifu
+
+
+def get_waifu_in_current_party(conn, user):
+    cur = conn.cursor()
+    cur.execute("select link_id from user_waifu where user_id = ? and party_order is not null",
+                (user,))
+    link_ids = [link for link, in cur]
+    print(link_ids)
+    return link_ids
+
+
+def get_waifu_in_current_party_with_level(conn, user):
+    cur = conn.cursor()
+    cur.execute("select link_id, level from user_waifu where user_id = ? and party_order is not null",
+                (user,))
+    link_ids = [(link, level) for link, level in cur]
+    print(link_ids)
+    return link_ids
 
 
 def remove_waifu_from_user(conn, user, waifu):
@@ -285,6 +324,86 @@ def get_waifu_by_id(conn, waifu):
     cur.execute("SELECT url, star_rating FROM links where id = ?", (waifu,))
     url, star_rating = cur.fetchone()
     return url, star_rating
+
+
+def get_party_waifu_by_id(conn, waifu):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT url, star_rating, base_hp, base_atk, base_def, base_speed, bonus_hit, bonus_dodge, "
+                "class FROM links where id = ?", (waifu,))
+    url, star_rating, base_hp, base_atk, base_def, base_speed, bonus_hit, bonus_dodge, dungeon_class = cur.fetchone()
+    return url, star_rating, base_hp, base_atk, base_def, base_speed, bonus_hit, bonus_dodge, dungeon_class
+
+
+def join_dungeon(conn, user_id, seed, party1_hp, party2_hp, party3_hp, keys, potions, food, floor):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("INSERT INTO dungeon (user_id, seed, party1_hp, party2_hp, party3_hp, chest_keys, potions, food, floor)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (user_id, seed, party1_hp, party2_hp, party3_hp, keys, potions, food, floor))
+        print("Successfully inserted!")
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+def check_user_in_dungeon(conn, user):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(1) FROM dungeon where user_id = ?", (user,))
+    count, = cur.fetchone()
+    return count != 0
+
+
+def get_dungeon_floor(conn, user):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT floor FROM dungeon where user_id = ?", (user,))
+    floor, = cur.fetchone()
+    return floor
+
+
+def get_all_link_rarity(conn, rarity):
+    cur = conn.cursor()
+    cur.execute("select id from links WHERE star_rating = ? and base_hp is not null",
+                (rarity,))
+    link_ids = [link for link, in cur]
+    return link_ids
+
+
+def update_stats(conn, hp, atk, defense, speed, hit_rate, dodge_rate, link_id):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE links SET base_hp = ?, base_atk = ?, base_def = ?, "
+                    "base_speed = ?, bonus_hit = ?, bonus_dodge = ? WHERE id = ?",
+                    (hp, atk, defense, speed, hit_rate, dodge_rate, link_id))
+        print("Successfully inserted user!")
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
+
+
+def get_enemy_waifu_by_id(conn, waifu):
+    # Get Cursor
+    cur = conn.cursor()
+    cur.execute("SELECT url, base_hp, base_atk, base_def, base_speed, bonus_hit, bonus_dodge FROM links where id = ?", (waifu,))
+    url, base_hp, base_atk, base_def, base_speed, bonus_hit, bonus_dodge = cur.fetchone()
+    return url, base_hp, base_atk, base_def, base_speed, bonus_hit, bonus_dodge
+
+
+def update_dungeon(conn, user, floor, party1hp, party2hp, party3hp):
+    # Get Cursor
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE dungeon SET floor = ?, party1hp = ?, party2hp = ?, "
+                    "party3hp = ? WHERE user_id = ?",
+                    (floor, party1hp, party2hp, party3hp, user))
+        print("Successfully updated dungeon!")
+        conn.commit()
+    except mariadb.Error as e:
+        print(f"Error: {e}")
 
 
 def commit(conn):

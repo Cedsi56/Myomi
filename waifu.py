@@ -4,7 +4,7 @@ from discord.ui import Item, Button
 import discord
 import random
 from db_connector import *
-from constants import allowed_guilds
+from constants import allowed_guilds, formula_calc_hp, formula_calc_stat, restricted_guilds
 
 ESSENCE_GAIN = [1000, 10, 20, 50, 100, 200]
 ESSENCE_COST = [10000, 40, 80, 200, 500, 1000]
@@ -14,7 +14,8 @@ class Waifu(commands.Cog):
     def __init__(self, setup_bot):  # this is a special method that is called when the cog is loaded
         self.bot = setup_bot
 
-    async def make_embed(self, ctx: discord.ApplicationContext, number, max_number, star_rating, uploader):
+    async def make_embed(self, ctx: discord.ApplicationContext, number, max_number, star_rating, uploader,
+                         hide_number = False):
         etoiles = "⭐" * int(star_rating)
         embed = discord.Embed(
             title=etoiles,
@@ -26,7 +27,8 @@ class Waifu(commands.Cog):
             uploader_user = await self.bot.fetch_user(uploader)
             print(uploader_user)
             embed.set_author(name=f"Uploaded by {uploader_user.name}", icon_url=uploader_user.avatar)
-        embed.set_footer(text=f"Waifu #{number}/{max_number}")
+        if not hide_number:
+            embed.set_footer(text=f"Waifu #{number}/{max_number}")
         return embed
 
 
@@ -275,6 +277,8 @@ class Waifu(commands.Cog):
             button2.disabled = False
             button_select = self.get_item("select")
             button_select.disabled = False
+            button_party = self.get_item("party")
+            button_party.disabled = False
             if self.number == 1:
                 button1.disabled = True
             if self.number == self.max_number:
@@ -285,6 +289,9 @@ class Waifu(commands.Cog):
             selected_id = get_currently_selected_waifu(conn, self.user)
             if selected_id == link_id:
                 button_select.disabled = True
+            party_waifus = get_waifu_in_current_party(conn, self.user)
+            if check_user_in_dungeon(conn, self.user) or link_id in party_waifus or star <= 3:
+                button_party.disabled = True
             close_connection(conn)
 
         @discord.ui.button(style=discord.ButtonStyle.primary, emoji="⬅️", custom_id="left", disabled=True)
@@ -331,6 +338,41 @@ class Waifu(commands.Cog):
                 await interaction.followup.send(f"Waifu sélectionnée!", ephemeral=True)
             else:
                 await interaction.followup.send(f"Vous ne pouvez pas sélectionner une waifu pour quelqu'un d'autre!",
+                                                ephemeral=True)
+
+
+        @discord.ui.button(style=discord.ButtonStyle.primary, emoji="🔰", custom_id="party", disabled=True)
+        async def add_waifu_to_party_callback(self, button, interaction):
+            await interaction.response.defer()
+            if interaction.user.id == self.user:
+                conn = make_connection()
+
+                if not check_user_in_dungeon(conn, user=self.user):
+
+                    link, uploader, star, link_id = get_link_dex(conn, int(self.number), self.user)
+
+                    add_waifu_to_party(conn, link_id, self.user)
+
+                    self.set_button_states()
+
+                    max_number = count_lines_dex(conn, self.user)
+                    embed = await self.waifu_instance.make_embed(None, self.number, max_number, star, uploader)
+                    file = discord.File(link, filename="image.png")
+                    close_connection(conn)
+                    await interaction.edit_original_response(file=file, embed=embed,
+                                                             view=self.waifu_instance.DexView(
+                                                                 self.waifu_instance,
+                                                                 self.number,
+                                                                 max_number,
+                                                                 self.user))
+
+                    await interaction.followup.send(f"Waifu ajoutée au groupe!", ephemeral=True)
+                else :
+                    await interaction.followup.send(
+                    f"Vous ne pouvez pas changer les waifus de votre groupe en plein donjon!",
+                    ephemeral=True)
+            else:
+                await interaction.followup.send(f"Vous ne pouvez pas ajouter la waifu d'un autre joueur à votre groupe!",
                                                 ephemeral=True)
 
 
@@ -796,6 +838,101 @@ class Waifu(commands.Cog):
                               ephemeral=True)
         finally:
             close_connection(conn)
+
+    async def make_party_embed(self, star_rating, hp, atk, defense, speed, bonus_hit, bonus_dodge, dungeon_class, level):
+        etoiles = "⭐" * star_rating
+        if dungeon_class == 1:
+            classe = "Healer"
+        else:
+            classe = "Mage"
+        embed = discord.Embed(
+            title=etoiles,
+            color=discord.Colour.purple(),
+            description=f"Classe : {classe} niveau {level}"
+        )
+        embed.add_field(name="HPs", value=hp)
+        embed.add_field(name="Attaque", value=atk)
+        embed.add_field(name="Défense", value=defense)
+        embed.add_field(name="Vitesse", value=speed)
+        embed.add_field(name="Bonus pour toucher", value=bonus_hit)
+        embed.add_field(name="Bonus pour esquiver", value=bonus_dodge)
+        embed.set_image(url="attachment://image.png")
+        return embed
+
+    @discord.slash_command(
+        name="party",
+        guild_ids=restricted_guilds,
+        description="Affiche le groupe actuel"
+    )
+    async def party(
+            self,
+            ctx: discord.ApplicationContext
+    ):
+        conn = make_connection()
+        try:
+            user = ctx.user.id
+
+            waifu_list = get_waifu_in_current_party_with_level(conn, user)
+
+            if len(waifu_list) > 0:
+                for waifu_id, waifu_level in waifu_list:
+                    link, star, base_hp, base_atk, base_def, base_speed, bonus_hit, bonus_dodge, dungeon_class\
+                        = get_party_waifu_by_id(conn, waifu_id)
+
+                    hp, atk, defense, speed = (formula_calc_hp(base_hp, waifu_level),
+                                               formula_calc_stat(base_atk, waifu_level),
+                                               formula_calc_stat(base_def, waifu_level),
+                                               formula_calc_stat(base_speed, waifu_level))
+
+                    embed = await self.make_party_embed(star, hp, atk, defense, speed,
+                                                        bonus_hit, bonus_dodge, dungeon_class, waifu_level)
+                    file = discord.File(link, filename="image.png")
+                    await ctx.respond(file=file, embed=embed)
+            else:
+                await ctx.respond("Vous n'avez pas de waifu dans votre groupe.", ephemeral=True)
+            close_connection(conn)
+        except Exception as e:
+            print(e)
+            close_connection(conn)
+
+
+    class RevealUserView(discord.ui.View): # Create a class called RevealUserView that subclasses discord.ui.View
+        def __init__(self, waifu_instance, number, max_number, uploader, *items: Item):
+            super().__init__(*items)
+            self.waifu_instance = waifu_instance
+            self.number = number
+            self.max_number = max_number
+            self.uploader = uploader
+
+        @discord.ui.button(style=discord.ButtonStyle.primary, emoji="🔎", custom_id="reveal", disabled=False)
+        async def show_uploader(self, button, interaction):
+            conn = make_connection()
+            link, uploader, star = get_link(conn, int(self.number))
+            embed = await self.waifu_instance.make_embed(None, self.number, self.max_number, star, self.uploader)
+            file = discord.File(link, filename="image.png")
+            close_connection(conn)
+            await self.message.edit(file=file, embed=embed, view=None)
+
+            await interaction.response.edit_message(view=None)
+
+
+    @discord.slash_command(
+        name="random_waifu_game",
+        guild_ids=allowed_guilds,
+        description="Jeu utilisant les waifus random"
+    )
+    async def random_waifu_game(
+            self,
+            ctx: discord.ApplicationContext
+    ):
+        conn = make_connection()
+        nb_links = count_lines(conn)
+        chosen_link = random.randint(1, nb_links)
+        link, uploader, star = get_link(conn, chosen_link)
+        embed = await self.make_embed(ctx, chosen_link, nb_links, star, None, True)
+        close_connection(conn)
+        file = discord.File(link, filename="image.png")
+        await ctx.respond(file=file, embed=embed, view=self.RevealUserView(self, chosen_link, nb_links, uploader))
 
 
 def setup(bot_setup):

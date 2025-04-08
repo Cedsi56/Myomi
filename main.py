@@ -1,5 +1,3 @@
-# This example requires the 'message_content' intent.
-
 import os
 from dotenv import load_dotenv
 from constants import bot
@@ -18,6 +16,7 @@ cogs_list = [
     'music',
     'upload',
     'waifu',
+    'dungeon'
 ]
 
 for cog in cogs_list:
